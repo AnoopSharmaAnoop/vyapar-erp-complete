@@ -1,0 +1,31 @@
+// Add this to your existing prisma/schema.prisma file
+
+model User {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
+  password    String    // Hashed password
+  name        String
+  companyId   Int       // ✅ User belongs to ONE company only
+  role        UserRole  @default(USER)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([companyId])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  ACCOUNTANT
+  MANAGER
+}
+
+// Also update Company model to add this relation:
+// Add to Company model:
+// users       User[]

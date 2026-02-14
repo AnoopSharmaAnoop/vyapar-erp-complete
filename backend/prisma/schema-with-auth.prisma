@@ -1,0 +1,263 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ✅ USER MODEL - For Authentication
+model User {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
+  password    String    // Hashed with bcrypt
+  name        String
+  companyId   Int       // ✅ User tied to ONE company
+  role        UserRole  @default(USER)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([companyId])
+  @@map("users")
+}
+
+// Company Model
+model Company {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  email               String    @unique
+  phone               String
+  street              String?
+  city                String?
+  state               String?
+  pincode             String?
+  country             String    @default("India")
+  gstNumber           String?
+  panNumber           String?
+  logo                String?
+  financialYearStart  DateTime  @default(now())
+  currency            String    @default("INR")
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  users               User[]    // ✅ Company has many users
+  items               Item[]
+  ledgers             Ledger[]
+  vouchers            Voucher[]
+
+  @@index([email])
+  @@map("companies")
+}
+
+// Item/Product Model
+model Item {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  itemCode        String
+  itemName        String
+  category        ItemCategory
+  description     String?
+  unit            ItemUnit
+  hsnCode         String?
+  openingStock    Float     @default(0)
+  currentStock    Float     @default(0)
+  minStockLevel   Float     @default(0)
+  purchasePrice   Float     @default(0)
+  sellingPrice    Float     @default(0)
+  mrp             Float?
+  gstRate         Float     @default(0)
+  taxType         TaxType   @default(NONE)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucherItems    VoucherItem[]
+
+  @@unique([companyId, itemCode])
+  @@index([companyId])
+  @@index([itemCode])
+  @@map("items")
+}
+
+// Ledger/Account Model
+model Ledger {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  ledgerName      String
+  ledgerGroup     LedgerGroup
+  openingBalance  Float     @default(0)
+  currentBalance  Float     @default(0)
+  balanceType     BalanceType @default(DEBIT)
+  phone           String?
+  email           String?
+  address         String?
+  gstNumber       String?
+  creditLimit     Float?
+  creditDays      Int?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vouchers        Voucher[]
+
+  @@unique([companyId, ledgerName])
+  @@index([companyId])
+  @@index([ledgerGroup])
+  @@map("ledgers")
+}
+
+// Voucher Model
+model Voucher {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  voucherNumber   String
+  voucherType     VoucherType
+  voucherDate     DateTime  @default(now())
+  partyId         Int
+  paymentMode     PaymentMode @default(CASH)
+  subTotal        Float     @default(0)
+  totalDiscount   Float     @default(0)
+  totalTax        Float     @default(0)
+  totalAmount     Float     @default(0)
+  amountPaid      Float     @default(0)
+  balanceAmount   Float     @default(0)
+  narration       String?
+  referenceNumber String?
+  dueDate         DateTime?
+  status          VoucherStatus @default(PENDING)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  party           Ledger    @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  items           VoucherItem[]
+
+  @@unique([companyId, voucherNumber])
+  @@index([companyId])
+  @@index([voucherType])
+  @@index([status])
+  @@index([voucherDate])
+  @@map("vouchers")
+}
+
+// Voucher Items (Junction Table)
+model VoucherItem {
+  id          Int       @id @default(autoincrement())
+  voucherId   Int
+  itemId      Int
+  quantity    Float
+  rate        Float
+  discount    Float     @default(0)
+  taxAmount   Float     @default(0)
+  amount      Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  voucher     Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([voucherId])
+  @@index([itemId])
+  @@map("voucher_items")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  USER
+  ACCOUNTANT
+  MANAGER
+}
+
+enum ItemCategory {
+  PRODUCT
+  SERVICE
+  RAW_MATERIAL
+  FINISHED_GOODS
+}
+
+enum ItemUnit {
+  PCS
+  KG
+  LTR
+  MTR
+  BOX
+  DOZEN
+  QUINTAL
+  TON
+}
+
+enum TaxType {
+  NONE
+  GST
+  IGST
+}
+
+enum LedgerGroup {
+  ASSETS
+  LIABILITIES
+  INCOME
+  EXPENSES
+  CAPITAL
+  CURRENT_ASSETS
+  CURRENT_LIABILITIES
+  FIXED_ASSETS
+  SUNDRY_DEBTORS
+  SUNDRY_CREDITORS
+  BANK_ACCOUNTS
+  CASH_IN_HAND
+  PURCHASE_ACCOUNTS
+  SALES_ACCOUNTS
+  DIRECT_EXPENSES
+  INDIRECT_EXPENSES
+}
+
+enum BalanceType {
+  DEBIT
+  CREDIT
+}
+
+enum VoucherType {
+  SALES_INVOICE
+  PURCHASE_INVOICE
+  PAYMENT
+  RECEIPT
+  JOURNAL
+  DEBIT_NOTE
+  CREDIT_NOTE
+  CONTRA
+}
+
+enum PaymentMode {
+  CASH
+  BANK
+  CREDIT
+  UPI
+  CHEQUE
+  CARD
+}
+
+enum VoucherStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+}

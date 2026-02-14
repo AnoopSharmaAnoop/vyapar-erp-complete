@@ -1,0 +1,569 @@
+// Complete VyaparERP Schema with Full Accounting Features
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+
+model User {
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  password          String    // Hashed with bcrypt
+  name              String
+  companyId         Int
+  role              UserRole  @default(USER)
+  permissions       Json?     // Custom permissions JSON
+  isActive          Boolean   @default(true)
+  lastLogin         DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([companyId])
+  @@map("users")
+}
+
+// Audit Log for all user actions
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  companyId   Int
+  action      String    // CREATE, UPDATE, DELETE, VIEW
+  entity      String    // VOUCHER, ITEM, LEDGER, etc.
+  entityId    Int?
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// COMPANY & SETTINGS
+// ==========================================
+
+model Company {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  email               String    @unique
+  phone               String
+  street              String?
+  city                String?
+  state               String?
+  pincode             String?
+  country             String    @default("India")
+  gstNumber           String?
+  panNumber           String?
+  tanNumber           String?
+  logo                String?
+  financialYearStart  DateTime  @default(now())
+  financialYearEnd    DateTime?
+  booksStartDate      DateTime  @default(now())
+  currency            String    @default("INR")
+  
+  // Tax Settings
+  gstEnabled          Boolean   @default(true)
+  tdsEnabled          Boolean   @default(false)
+  tcsEnabled          Boolean   @default(false)
+  
+  // Accounting Settings
+  accountingMethod    AccountingMethod @default(ACCRUAL)
+  depreciationMethod  DepreciationMethod @default(WDV)
+  
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  users               User[]
+  items               Item[]
+  ledgers             Ledger[]
+  vouchers            Voucher[]
+  journalEntries      JournalEntry[]
+  taxRates            TaxRate[]
+  auditLogs           AuditLog[]
+
+  @@index([email])
+  @@map("companies")
+}
+
+// Tax Rates Configuration
+model TaxRate {
+  id          Int       @id @default(autoincrement())
+  companyId   Int
+  taxName     String    // GST, CGST, SGST, IGST, TDS, TCS
+  rate        Float
+  isDefault   Boolean   @default(false)
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("tax_rates")
+}
+
+// ==========================================
+// CHART OF ACCOUNTS
+// ==========================================
+
+model Ledger {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  ledgerCode      String    // Unique code like L001
+  ledgerName      String
+  ledgerGroup     LedgerGroup
+  parentLedger    Int?      // For sub-ledgers
+  openingBalance  Float     @default(0)
+  currentBalance  Float     @default(0)
+  balanceType     BalanceType @default(DEBIT)
+  
+  // Contact Details (for parties)
+  phone           String?
+  email           String?
+  address         String?
+  gstNumber       String?
+  panNumber       String?
+  
+  // Credit Terms
+  creditLimit     Float?
+  creditDays      Int?
+  
+  // Bank Details (for bank accounts)
+  bankName        String?
+  accountNumber   String?
+  ifscCode        String?
+  branch          String?
+  
+  // Tax Settings
+  tdsApplicable   Boolean   @default(false)
+  tdsRate         Float?
+  tcsApplicable   Boolean   @default(false)
+  tcsRate         Float?
+  
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vouchers        Voucher[] @relation("PartyLedger")
+  journalDebits   JournalEntry[] @relation("DebitLedger")
+  journalCredits  JournalEntry[] @relation("CreditLedger")
+
+  @@unique([companyId, ledgerCode])
+  @@unique([companyId, ledgerName])
+  @@index([companyId])
+  @@index([ledgerGroup])
+  @@map("ledgers")
+}
+
+// ==========================================
+// INVENTORY
+// ==========================================
+
+model Item {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  itemCode        String
+  itemName        String
+  category        ItemCategory
+  description     String?
+  unit            ItemUnit
+  hsnCode         String?
+  sacCode         String?   // For services
+  
+  // Stock Details
+  openingStock    Float     @default(0)
+  currentStock    Float     @default(0)
+  minStockLevel   Float     @default(0)
+  maxStockLevel   Float?
+  reorderLevel    Float?
+  
+  // Pricing
+  purchasePrice   Float     @default(0)
+  sellingPrice    Float     @default(0)
+  mrp             Float?
+  marginPercent   Float?
+  
+  // Tax
+  gstRate         Float     @default(0)
+  cessRate        Float     @default(0)
+  taxType         TaxType   @default(NONE)
+  taxPreference   TaxPreference @default(TAXABLE)
+  
+  // Location
+  godownLocation  String?
+  rackNumber      String?
+  
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucherItems    VoucherItem[]
+  stockMovements  StockMovement[]
+
+  @@unique([companyId, itemCode])
+  @@index([companyId])
+  @@index([itemCode])
+  @@map("items")
+}
+
+// Stock Movement Tracking
+model StockMovement {
+  id            Int       @id @default(autoincrement())
+  itemId        Int
+  companyId     Int
+  voucherId     Int?
+  movementType  MovementType
+  quantity      Float
+  rate          Float?
+  stockBefore   Float
+  stockAfter    Float
+  movementDate  DateTime  @default(now())
+  narration     String?
+  createdAt     DateTime  @default(now())
+
+  // Relations
+  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([companyId])
+  @@index([movementDate])
+  @@map("stock_movements")
+}
+
+// ==========================================
+// VOUCHERS & TRANSACTIONS
+// ==========================================
+
+model Voucher {
+  id              Int       @id @default(autoincrement())
+  companyId       Int
+  voucherNumber   String
+  voucherType     VoucherType
+  voucherDate     DateTime  @default(now())
+  partyId         Int
+  
+  // Amounts
+  subTotal        Float     @default(0)
+  totalDiscount   Float     @default(0)
+  totalTaxable    Float     @default(0)
+  
+  // Tax Breakdown
+  cgstAmount      Float     @default(0)
+  sgstAmount      Float     @default(0)
+  igstAmount      Float     @default(0)
+  cessAmount      Float     @default(0)
+  tdsAmount       Float     @default(0)
+  tcsAmount       Float     @default(0)
+  
+  totalTax        Float     @default(0)
+  roundOff        Float     @default(0)
+  totalAmount     Float     @default(0)
+  
+  // Payment
+  amountPaid      Float     @default(0)
+  balanceAmount   Float     @default(0)
+  paymentMode     PaymentMode @default(CASH)
+  
+  // Additional Details
+  narration       String?
+  referenceNumber String?
+  dueDate         DateTime?
+  placeOfSupply   String?
+  
+  // Tax Invoice Details
+  taxInvoiceNumber String?
+  taxInvoiceDate   DateTime?
+  
+  // Transport Details (for goods)
+  transportMode   String?
+  vehicleNumber   String?
+  lrNumber        String?
+  eWayBillNumber  String?
+  
+  status          VoucherStatus @default(PENDING)
+  isPosted        Boolean   @default(false)  // Posted to ledger
+  postedAt        DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  party           Ledger    @relation("PartyLedger", fields: [partyId], references: [id], onDelete: Restrict)
+  items           VoucherItem[]
+  journalEntries  JournalEntry[]
+
+  @@unique([companyId, voucherNumber])
+  @@index([companyId])
+  @@index([voucherType])
+  @@index([status])
+  @@index([voucherDate])
+  @@map("vouchers")
+}
+
+model VoucherItem {
+  id          Int       @id @default(autoincrement())
+  voucherId   Int
+  itemId      Int
+  quantity    Float
+  rate        Float
+  discount    Float     @default(0)
+  discountPercent Float @default(0)
+  
+  // Tax Details
+  taxableAmount Float   @default(0)
+  cgstRate    Float     @default(0)
+  cgstAmount  Float     @default(0)
+  sgstRate    Float     @default(0)
+  sgstAmount  Float     @default(0)
+  igstRate    Float     @default(0)
+  igstAmount  Float     @default(0)
+  cessRate    Float     @default(0)
+  cessAmount  Float     @default(0)
+  
+  totalTax    Float     @default(0)
+  amount      Float
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  voucher     Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([voucherId])
+  @@index([itemId])
+  @@map("voucher_items")
+}
+
+// ==========================================
+// JOURNAL ENTRIES (Double Entry Accounting)
+// ==========================================
+
+model JournalEntry {
+  id            Int       @id @default(autoincrement())
+  companyId     Int
+  voucherId     Int?      // Linked to voucher if auto-generated
+  entryNumber   String
+  entryDate     DateTime  @default(now())
+  
+  debitLedgerId Int
+  creditLedgerId Int
+  amount        Float
+  
+  narration     String?
+  referenceType String?   // VOUCHER, MANUAL, ADJUSTMENT
+  referenceId   Int?
+  
+  isPosted      Boolean   @default(true)
+  isReversed    Boolean   @default(false)
+  reversedBy    Int?      // Journal Entry ID that reversed this
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucher       Voucher?  @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  debitLedger   Ledger    @relation("DebitLedger", fields: [debitLedgerId], references: [id], onDelete: Restrict)
+  creditLedger  Ledger    @relation("CreditLedger", fields: [creditLedgerId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId])
+  @@index([voucherId])
+  @@index([entryDate])
+  @@map("journal_entries")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ACCOUNTANT
+  MANAGER
+  SALES_USER
+  PURCHASE_USER
+  USER
+}
+
+enum AccountingMethod {
+  CASH
+  ACCRUAL
+}
+
+enum DepreciationMethod {
+  SLM     // Straight Line Method
+  WDV     // Written Down Value
+}
+
+enum ItemCategory {
+  PRODUCT
+  SERVICE
+  RAW_MATERIAL
+  FINISHED_GOODS
+  WORK_IN_PROGRESS
+  CONSUMABLES
+}
+
+enum ItemUnit {
+  PCS
+  KG
+  GRAM
+  LTR
+  ML
+  MTR
+  CM
+  BOX
+  DOZEN
+  QUINTAL
+  TON
+  SQFT
+  SQMTR
+}
+
+enum TaxType {
+  NONE
+  GST
+  IGST
+}
+
+enum TaxPreference {
+  TAXABLE
+  EXEMPT
+  NIL_RATED
+}
+
+enum LedgerGroup {
+  // Assets
+  ASSETS
+  CURRENT_ASSETS
+  FIXED_ASSETS
+  INVESTMENTS
+  
+  // Liabilities
+  LIABILITIES
+  CURRENT_LIABILITIES
+  LONG_TERM_LIABILITIES
+  
+  // Capital
+  CAPITAL
+  RESERVES_SURPLUS
+  
+  // Income
+  INCOME
+  SALES_ACCOUNTS
+  DIRECT_INCOME
+  INDIRECT_INCOME
+  
+  // Expenses
+  EXPENSES
+  PURCHASE_ACCOUNTS
+  DIRECT_EXPENSES
+  INDIRECT_EXPENSES
+  
+  // Parties
+  SUNDRY_DEBTORS
+  SUNDRY_CREDITORS
+  
+  // Cash & Bank
+  CASH_IN_HAND
+  BANK_ACCOUNTS
+  BANK_OD_ACCOUNTS
+  
+  // Duties & Taxes
+  DUTIES_TAXES
+  PROVISIONS
+  
+  // Loans
+  LOANS_LIABILITY
+  LOANS_ASSETS
+  
+  // Suspense
+  SUSPENSE_ACCOUNTS
+}
+
+enum BalanceType {
+  DEBIT
+  CREDIT
+}
+
+enum VoucherType {
+  SALES_INVOICE
+  PURCHASE_INVOICE
+  SALES_RETURN
+  PURCHASE_RETURN
+  PAYMENT
+  RECEIPT
+  JOURNAL
+  CONTRA
+  DEBIT_NOTE
+  CREDIT_NOTE
+}
+
+enum PaymentMode {
+  CASH
+  BANK
+  CREDIT
+  UPI
+  CHEQUE
+  CARD
+  NEFT
+  RTGS
+  IMPS
+}
+
+enum VoucherStatus {
+  DRAFT
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+  OVERDUE
+}
+
+enum MovementType {
+  OPENING_STOCK
+  PURCHASE
+  SALES
+  SALES_RETURN
+  PURCHASE_RETURN
+  STOCK_TRANSFER
+  DAMAGE
+  ADJUSTMENT
+}
+
+@@map("enums")
