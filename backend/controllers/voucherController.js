@@ -1,5 +1,5 @@
 const prisma = require('../config/prisma');
-const accountingService = require('../Services/accountingService')
+const accountingService = require('../services/accountingService')
 const VOUCHER_TYPE_MAP = {
   'Sales Invoice': 'SALES_INVOICE',
   'Purchase Invoice': 'PURCHASE_INVOICE',
