@@ -210,19 +210,27 @@ setFormData(prev => {
 
 const buildVoucherPayload = () => {
 
-  const payload = {
-    voucherNumber: formData.voucherNumber,
-    voucherType: formData.voucherType,
-    voucherDate: formData.voucherDate,
-    narration: formData.narration,
-   totalAmount:
-  formData.voucherType === 'Journal'
-    ? Number(formData.journalAmount)
-    : Number(formData.totalAmount),
+ const payload = {
+  voucherNumber: formData.voucherNumber,
+  voucherType: formData.voucherType,
+  voucherDate: formData.voucherDate,
+  narration: formData.narration,
 
-    amountPaid: Number(formData.amountPaid),
-    paymentMode: formData.paymentMode
-  };
+  totalAmount:
+    formData.voucherType === 'Journal'
+      ? Number(formData.journalAmount)
+      : ['Receipt', 'Payment'].includes(formData.voucherType)
+      ? Number(formData.voucherAmount)
+      : Number(formData.totalAmount),
+
+  amountPaid:
+    ['Receipt', 'Payment'].includes(formData.voucherType)
+      ? Number(formData.voucherAmount)
+      : Number(formData.amountPaid),
+
+  paymentMode: formData.paymentMode,
+  party: formData.party
+};
 
   if (formData.party && formData.voucherType !== 'Journal') {
     payload.party = Number(formData.party);
