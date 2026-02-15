@@ -399,7 +399,23 @@ const handleSubmit = async (e) => {
                   </span>
                 </td>
                 <td>
-                
+                <td>
+  <button className="btn btn-primary" onClick={() => handleView(voucher)}>
+    <FaEye />
+  </button>
+
+  <button className="btn btn-warning" onClick={() => handleEdit(voucher)}>
+    <FaEdit />
+  </button>
+
+  <button
+    className="btn btn-danger"
+    onClick={() => handleDelete(voucher.id)}
+  >
+    <FaTrash />
+  </button>
+</td>
+
                 
                 </td>
               </tr>
