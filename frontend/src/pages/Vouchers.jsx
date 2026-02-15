@@ -471,6 +471,22 @@ const handleSubmit = async (e) => {
     </div>
   )}
 
+
+{['Receipt', 'Payment'].includes(formData.voucherType) && (
+  <div className="form-group">
+    <label>Amount</label>
+    <input
+      type="number"
+      name="voucherAmount"
+      className="form-input"
+      value={formData.voucherAmount}
+      onChange={handleChange}
+    />
+  </div>
+)}
+
+
+
   {/* ITEM SECTION */}
   {['Sales Invoice', 'Purchase Invoice'].includes(formData.voucherType) && (
     <>
