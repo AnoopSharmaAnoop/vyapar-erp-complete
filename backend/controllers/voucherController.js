@@ -135,7 +135,11 @@ narration
       });
 
 // Validate voucher amount
-if (!voucher.totalAmount || voucher.totalAmount <= 0) {
+if (
+  ['RECEIPT', 'PAYMENT', 'SALES_INVOICE', 'PURCHASE_INVOICE']
+  .includes(prismaVoucherType) &&
+  (!voucher.totalAmount || voucher.totalAmount <= 0)
+) {
   throw new Error('Voucher amount must be greater than zero');
 }
 
