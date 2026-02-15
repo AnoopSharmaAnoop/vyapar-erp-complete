@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { voucherAPI, itemAPI, ledgerAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { FaPlus, FaTrash, FaEye } from 'react-icons/fa';
+import { FaEdit } from 'react-icons/fa';
+
 import { format } from 'date-fns';
 
 const Vouchers = () => {
