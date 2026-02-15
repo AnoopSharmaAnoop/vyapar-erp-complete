@@ -58,15 +58,29 @@ async function getOrCreateLedger(tx, companyId, ledgerName, ledgerGroup, ledgerT
 
 exports.createVoucher = async (req, res) => {
   try {
-    const {
-      voucherType,
-      voucherDate,
-      party,
-      items,
-      totalAmount,
-      narration,
-      journalEntries
-    } = req.body;
+ //   const {
+  //    voucherType,
+    //  voucherDate,
+     // party,
+      //items,
+      //totalAmount,
+      //narration,
+      //journalEntries
+    //} = req.body;
+
+const {
+  voucherType,
+  voucherDate,
+  party,
+  items,
+  totalAmount,
+  amountPaid,
+  paymentMode,
+  narration,
+  journalEntries
+} = req.body;
+
+
 
     const companyId = req.user.companyId;
     const prismaVoucherType = VOUCHER_TYPE_MAP[voucherType];
@@ -111,10 +125,21 @@ exports.createVoucher = async (req, res) => {
           voucherType: prismaVoucherType,
           voucherDate: new Date(voucherDate),
           partyId,
-          totalAmount: Number(totalAmount || 0),
-          narration
+      totalAmount: Number(totalAmount || 0),
+amountPaid: Number(amountPaid || totalAmount || 0),
+paymentMode: paymentMode || 'CASH',
+narration
+
+         
         }
       });
+
+// Validate voucher amount
+if (!voucher.totalAmount || voucher.totalAmount <= 0) {
+  throw new Error('Voucher amount must be greater than zero');
+}
+
+
 
       /* ---------- Save Items ---------- */
       if (items?.length) {
@@ -228,6 +253,88 @@ const cashLedger = await getOrCreateLedger(
         });
       }
 
+
+
+// 🔵 RECEIPT ENTRY
+if (prismaVoucherType === 'RECEIPT') {
+  if (!partyId) {
+    throw new Error('Receipt voucher requires a party');
+  }
+
+  const cashLedger = await getOrCreateLedger(
+    tx, companyId, 'Cash in Hand', 'CASH_IN_HAND', 'ASSET'
+  );
+
+  const partyLedger = await tx.ledger.findUnique({
+    where: { id: partyId }
+  });
+
+  if (!partyLedger) throw new Error('Party ledger missing');
+
+  await tx.journalEntry.createMany({
+    data: [
+      {
+        companyId,
+        voucherId: voucher.id,
+        ledgerId: cashLedger.id,
+        debit: voucher.totalAmount,
+        credit: 0,
+        narration
+      },
+      {
+        companyId,
+        voucherId: voucher.id,
+        ledgerId: partyLedger.id,
+        debit: 0,
+        credit: voucher.totalAmount,
+        narration
+      }
+    ]
+  });
+}
+
+
+// 🔵 PAYMENT ENTRY
+if (prismaVoucherType === 'PAYMENT') {
+ if (!partyId) {
+    throw new Error('Payment voucher requires a party');
+  }
+  const cashLedger = await getOrCreateLedger(
+    tx, companyId, 'Cash in Hand', 'CASH_IN_HAND', 'ASSET'
+  );
+
+  const partyLedger = await tx.ledger.findUnique({
+    where: { id: partyId }
+  });
+
+  if (!partyLedger) throw new Error('Party ledger missing');
+
+  await tx.journalEntry.createMany({
+    data: [
+      {
+        companyId,
+        voucherId: voucher.id,
+        ledgerId: partyLedger.id,
+        debit: voucher.totalAmount,
+        credit: 0,
+        narration
+      },
+      {
+        companyId,
+        voucherId: voucher.id,
+        ledgerId: cashLedger.id,
+        debit: 0,
+        credit: voucher.totalAmount,
+        narration
+      }
+    ]
+  });
+}
+
+
+
+
+
       // 🔵 MANUAL JOURNAL ENTRY
       if (prismaVoucherType === 'JOURNAL' && journalEntries?.length) {
         for (const entry of journalEntries) {
@@ -328,7 +435,8 @@ const voucherNumber = `${prefixMap[prismaVoucherType]}-${String(nextNumber).padS
           voucherType: prismaVoucherType,
           voucherDate: voucherDate ? new Date(voucherDate) : new Date(),
           partyId,
-          totalAmount: Number(totalAmount || 0),
+          totalAmount:parseFloat(totalAmount) || 0
+,
           narration
         },
       });
