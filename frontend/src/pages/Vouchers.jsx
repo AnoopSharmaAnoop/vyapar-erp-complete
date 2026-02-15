@@ -3,8 +3,6 @@ import { useApp } from '../context/AppContext';
 import { voucherAPI, itemAPI, ledgerAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { FaPlus, FaTrash, FaEye } from 'react-icons/fa';
-import { FaEdit } from 'react-icons/fa';
-
 import { format } from 'date-fns';
 
 const Vouchers = () => {
@@ -401,24 +399,10 @@ const handleSubmit = async (e) => {
                   </span>
                 </td>
                 <td>
-                <td>
-  <button className="btn btn-primary" onClick={() => handleView(voucher)}>
-    <FaEye />
-  </button>
-
-  <button className="btn btn-warning" onClick={() => handleEdit(voucher)}>
-    <FaEdit />
-  </button>
-
-  <button
-    className="btn btn-danger"
-    onClick={() => handleDelete(voucher.id)}
-  >
-    <FaTrash />
-  </button>
-</td>
-
                 
+                  <button className="btn btn-primary" onClick={() => handleView(voucher)}>
+                    <FaEye />
+                  </button>
                 </td>
               </tr>
             ))}
