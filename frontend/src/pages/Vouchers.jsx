@@ -399,9 +399,8 @@ const handleSubmit = async (e) => {
                   </span>
                 </td>
                 <td>
-                  <button className="btn btn-primary" onClick={() => handleView(voucher)}>
-                    <FaEye />
-                  </button>
+                
+                
                 </td>
               </tr>
             ))}
