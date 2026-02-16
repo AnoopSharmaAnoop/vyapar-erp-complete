@@ -79,11 +79,9 @@ const getBalanceType = (ledgerType, balance) => {
     e.preventDefault();
     try {
 
-      const data = {
+ const data = {
   ledgerName: formData.ledgerName,
   ledgerGroup: formData.ledgerGroup,
-  openingBalance: formData.openingBalance,
- 
   creditLimit: formData.creditLimit,
   creditDays: formData.creditDays,
   phone: formData.contactDetails.phone,
@@ -91,6 +89,11 @@ const getBalanceType = (ledgerType, balance) => {
   address: formData.contactDetails.address,
   gstNumber: formData.contactDetails.gstNumber,
 };
+
+// ONLY while creating new ledger
+if (!editingLedger) {
+  data.openingBalance = formData.openingBalance;
+}
 
     
       if (editingLedger) {
